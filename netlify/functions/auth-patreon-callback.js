@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 
 // Add your Patreon user ID here to always get adept access
-const ADMIN_IDS = ["fd2308be-8238-4451-8bb2-f1f4651041b9"];
+const ADMIN_IDS = ["57190794"];
 
 function getTier(amountCents, userId) {
   if (ADMIN_IDS.includes(userId)) return "adept";
