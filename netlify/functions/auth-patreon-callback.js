@@ -1,13 +1,10 @@
 const jwt = require("jsonwebtoken");
 
-// Tier amount to role mapping
-const TIER_MAP = {
-  0: "tyro",       // free
-  500: "initiate", // $5
-  1500: "adept",   // $15
-};
+// Add your Patreon user ID here to always get adept access
+const ADMIN_IDS = ["fd2308be-8238-4451-8bb2-f1f4651041b9"];
 
-function getTier(amountCents) {
+function getTier(amountCents, userId) {
+  if (ADMIN_IDS.includes(userId)) return "adept";
   if (amountCents >= 1500) return "adept";
   if (amountCents >= 500) return "initiate";
   return "tyro";
@@ -72,7 +69,7 @@ exports.handler = async (event) => {
       ? activeMembership.attributes.currently_entitled_amount_cents
       : 0;
 
-    const tier = getTier(amountCents);
+    const tier = getTier(amountCents, user.id);
 
     // Sign JWT
     const token = jwt.sign(
