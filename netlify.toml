@@ -1,0 +1,18 @@
+[build]
+  functions = "netlify/functions"
+  publish = "."
+
+[[redirects]]
+  from = "/auth/patreon"
+  to = "/.netlify/functions/auth-patreon"
+  status = 200
+
+[[redirects]]
+  from = "/auth/patreon/callback"
+  to = "/.netlify/functions/auth-patreon-callback"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/dashboard.html"
+  status = 200
