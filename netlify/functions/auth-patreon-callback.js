@@ -56,6 +56,16 @@ exports.handler = async (event) => {
 
     const identity = await identityRes.json();
     const user = identity.data;
+
+    if (!user || !user.id) {
+      console.error("Identity fetch failed:", JSON.stringify(identity));
+      return {
+        statusCode: 302,
+        headers: { Location: "/?auth=identity_failed" },
+        body: "",
+      };
+    }
+
     const memberships = identity.included || [];
 
     // Find active membership and determine tier

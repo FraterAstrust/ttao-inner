@@ -6,7 +6,7 @@ exports.handler = async () => {
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: "identity identity.memberships",
+    scope: "identity identity[email] identity.memberships",
   });
 
   return {
