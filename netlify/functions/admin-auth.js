@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 
 // Only these Patreon IDs can access the admin panel
-const ADMIN_IDS = ["YOUR_PATREON_USER_ID"];
+const ADMIN_IDS = ["57190794"];
 
 exports.handler = async (event) => {
   const { code, error } = event.queryStringParameters || {};
