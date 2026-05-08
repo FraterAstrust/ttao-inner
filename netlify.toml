@@ -5,14 +5,29 @@
 [[redirects]]
   from = "/auth/patreon"
   to = "/.netlify/functions/auth-patreon"
-  status = 200
+  status = 301
 
 [[redirects]]
   from = "/auth/patreon/callback"
   to = "/.netlify/functions/auth-patreon-callback"
-  status = 200
+  status = 301
+
+[[redirects]]
+  from = "/auth/admin"
+  to = "/.netlify/functions/admin-auth"
+  status = 301
+
+[[redirects]]
+  from = "/auth/admin/callback"
+  to = "/.netlify/functions/admin-auth"
+  status = 301
 
 [[redirects]]
   from = "/dashboard"
   to = "/dashboard.html"
+  status = 200
+
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
   status = 200

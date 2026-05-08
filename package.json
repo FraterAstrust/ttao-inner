@@ -15,6 +15,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@netlify/blobs": "^10.7.4",
     "jsonwebtoken": "^9.0.3"
   }
 }

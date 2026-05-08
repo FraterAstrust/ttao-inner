@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTAO — Sysadmin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<nav class="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-emblem" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="32" cy="32" r="30" fill="none" stroke="rgba(212,175,55,0.5)" stroke-width="0.8"/>
+                <polygon points="32,8 56,48 8,48" fill="none" stroke="rgba(212,175,55,0.6)" stroke-width="0.8"/>
+                <polygon points="32,56 8,16 56,16" fill="none" stroke="rgba(0,209,255,0.35)" stroke-width="0.8"/>
+                <circle cx="32" cy="32" r="3" fill="rgba(212,175,55,0.5)"/>
+            </svg>
+        </div>
+        <div>
+            <div class="sidebar-title">TTAO</div>
+            <div class="sidebar-role">Sysadmin</div>
+        </div>
+    </div>
+
+    <ul class="sidebar-nav">
+        <li><button class="nav-item active" data-panel="articles-list">
+            <span class="nav-icon">📜</span><span>Articles</span>
+        </button></li>
+        <li><button class="nav-item" data-panel="article-new">
+            <span class="nav-icon">✦</span><span>New Article</span>
+        </button></li>
+        <li><button class="nav-item" data-panel="students">
+            <span class="nav-icon">⚗</span><span>Students</span>
+        </button></li>
+    </ul>
+
+    <div class="sidebar-footer">
+        <button class="logout-btn" id="logout-btn">⬡ Sign Out</button>
+    </div>
+</nav>
+
+<div class="main-wrap">
+    <header class="dash-header">
+        <div class="dash-header-title">Inner Academy — Administration</div>
+        <div class="dash-admin-badge">ASTRUST</div>
+    </header>
+
+    <main class="dash-content" id="dash-content">
+        <!-- Populated by JS -->
+    </main>
+</div>
+
+<!-- ARTICLE EDITOR TEMPLATE -->
+<template id="tpl-editor">
+    <div class="panel fade-in" id="editor-panel">
+        <div class="panel-eyebrow" id="editor-eyebrow">New Article</div>
+        <div class="editor-form">
+            <div class="field-row">
+                <div class="field">
+                    <label class="field-label">Title</label>
+                    <input type="text" id="ed-title" class="field-input" placeholder="Article title">
+                </div>
+                <div class="field field-sm">
+                    <label class="field-label">Minimum Tier</label>
+                    <select id="ed-tier" class="field-input">
+                        <option value="tyro">Tyro (Free)</option>
+                        <option value="initiate">Initiate ($5)</option>
+                        <option value="adept">Adept ($15)</option>
+                    </select>
+                </div>
+                <div class="field field-sm">
+                    <label class="field-label">Status</label>
+                    <select id="ed-published" class="field-input">
+                        <option value="false">Draft</option>
+                        <option value="true">Published</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="editor-cols">
+                <div class="editor-col">
+                    <label class="field-label">Markdown</label>
+                    <textarea id="ed-content" class="md-input" placeholder="Write in markdown..."></textarea>
+                </div>
+                <div class="editor-col">
+                    <label class="field-label">Preview</label>
+                    <div id="ed-preview" class="md-preview"></div>
+                </div>
+            </div>
+
+            <div class="editor-actions">
+                <button class="btn btn-gold" id="ed-save">Save Article</button>
+                <button class="btn btn-outline" id="ed-cancel">Cancel</button>
+                <span class="save-status" id="save-status"></span>
+            </div>
+        </div>
+    </div>
+</template>
+
+<script>
+// ── AUTH CHECK ──
+function getCookie(name) {
+    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    return match ? match[2] : null;
+}
+
+function parseJWT(token) {
+    try {
+        return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    } catch { return null; }
+}
+
+const adminToken = getCookie('ttao_admin');
+if (!adminToken) {
+    window.location.href = '/auth/admin';
+}
+const adminPayload = parseJWT(adminToken);
+if (!adminPayload || adminPayload.role !== 'admin') {
+    window.location.href = '/auth/admin';
+}
+
+// ── API HELPERS ──
+async function api(path, options = {}) {
+    const res = await fetch(path, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+    });
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    return res.json();
+}
+
+// ── PANELS ──
+let editingId = null;
+
+const PANELS = {
+    'articles-list': renderArticlesList,
+    'article-new': () => renderEditor(null),
+    'students': renderStudents,
+};
+
+function setActiveNav(id) {
+    document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.panel === id);
+    });
+}
+
+function showPanel(id) {
+    setActiveNav(id);
+    PANELS[id]?.();
+}
+
+// ── ARTICLES LIST ──
+async function renderArticlesList() {
+    const el = document.getElementById('dash-content');
+    el.innerHTML = `<div class="panel fade-in">
+        <div class="panel-eyebrow">Content</div>
+        <div class="panel-header-row">
+            <h1 class="panel-title">Articles</h1>
+            <button class="btn btn-gold" id="new-article-btn">+ New Article</button>
+        </div>
+        <div id="articles-table-wrap"><div class="loading">Loading...</div></div>
+    </div>`;
+
+    document.getElementById('new-article-btn').addEventListener('click', () => renderEditor(null));
+
+    try {
+        const articles = await api('/.netlify/functions/admin-articles');
+        const wrap = document.getElementById('articles-table-wrap');
+
+        if (!articles.length) {
+            wrap.innerHTML = `<p class="empty-state">No articles yet. Create your first one.</p>`;
+            return;
+        }
+
+        wrap.innerHTML = `<table class="data-table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Tier</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                ${articles.map(a => `
+                <tr>
+                    <td class="td-title">${a.title}</td>
+                    <td><span class="tier-pill tier-${a.tier}">${a.tier}</span></td>
+                    <td><span class="status-pill ${a.published ? 'published' : 'draft'}">${a.published ? 'Published' : 'Draft'}</span></td>
+                    <td class="td-date">${new Date(a.updatedAt).toLocaleDateString()}</td>
+                    <td class="td-actions">
+                        <button class="action-btn" data-action="edit" data-id="${a.id}">Edit</button>
+                        <button class="action-btn danger" data-action="delete" data-id="${a.id}" data-title="${a.title}">Delete</button>
+                    </td>
+                </tr>`).join('')}
+            </tbody>
+        </table>`;
+
+        wrap.addEventListener('click', async (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            if (btn.dataset.action === 'edit') renderEditor(btn.dataset.id);
+            if (btn.dataset.action === 'delete') {
+                if (!confirm(`Delete "${btn.dataset.title}"?`)) return;
+                await api(`/.netlify/functions/admin-articles?id=${btn.dataset.id}`, { method: 'DELETE' });
+                renderArticlesList();
+            }
+        });
+    } catch (err) {
+        document.getElementById('articles-table-wrap').innerHTML = `<p class="error-state">Failed to load articles: ${err.message}</p>`;
+    }
+}
+
+// ── EDITOR ──
+async function renderEditor(id) {
+    editingId = id;
+    setActiveNav(id ? 'articles-list' : 'article-new');
+
+    const tpl = document.getElementById('tpl-editor').content.cloneNode(true);
+    const el = document.getElementById('dash-content');
+    el.innerHTML = '';
+    el.appendChild(tpl);
+
+    document.getElementById('editor-eyebrow').textContent = id ? 'Edit Article' : 'New Article';
+
+    const titleEl = document.getElementById('ed-title');
+    const contentEl = document.getElementById('ed-content');
+    const tierEl = document.getElementById('ed-tier');
+    const publishedEl = document.getElementById('ed-published');
+    const previewEl = document.getElementById('ed-preview');
+
+    // Load existing if editing
+    if (id) {
+        try {
+            const article = await api(`/.netlify/functions/admin-articles?id=${id}`);
+            titleEl.value = article.title;
+            contentEl.value = article.content;
+            tierEl.value = article.tier;
+            publishedEl.value = String(article.published);
+            previewEl.innerHTML = marked.parse(article.content);
+        } catch (err) {
+            document.getElementById('save-status').textContent = 'Failed to load article.';
+        }
+    }
+
+    // Live preview
+    contentEl.addEventListener('input', () => {
+        previewEl.innerHTML = marked.parse(contentEl.value);
+    });
+
+    // Save
+    document.getElementById('ed-save').addEventListener('click', async () => {
+        const status = document.getElementById('save-status');
+        const payload = {
+            title: titleEl.value.trim(),
+            content: contentEl.value,
+            tier: tierEl.value,
+            published: publishedEl.value === 'true',
+        };
+        if (!payload.title || !payload.content) {
+            status.textContent = 'Title and content are required.';
+            return;
+        }
+        status.textContent = 'Saving...';
+        try {
+            if (id) {
+                await api(`/.netlify/functions/admin-articles?id=${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+            } else {
+                await api('/.netlify/functions/admin-articles', { method: 'POST', body: JSON.stringify(payload) });
+            }
+            status.textContent = '✓ Saved';
+            setTimeout(() => renderArticlesList(), 800);
+        } catch (err) {
+            status.textContent = `Error: ${err.message}`;
+        }
+    });
+
+    document.getElementById('ed-cancel').addEventListener('click', () => renderArticlesList());
+}
+
+// ── STUDENTS ──
+async function renderStudents() {
+    const el = document.getElementById('dash-content');
+    el.innerHTML = `<div class="panel fade-in">
+        <div class="panel-eyebrow">Registry</div>
+        <h1 class="panel-title">Students</h1>
+        <div id="students-table-wrap"><div class="loading">Loading...</div></div>
+    </div>`;
+
+    try {
+        const students = await api('/.netlify/functions/admin-students');
+        const wrap = document.getElementById('students-table-wrap');
+
+        if (!students.length) {
+            wrap.innerHTML = `<p class="empty-state">No students have logged in yet.</p>`;
+            return;
+        }
+
+        wrap.innerHTML = `<table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Tier</th>
+                    <th>Last Seen</th>
+                    <th>Override</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${students.map(s => `
+                <tr>
+                    <td>${s.name || '—'}</td>
+                    <td class="td-email">${s.email || '—'}</td>
+                    <td>
+                        <select class="tier-select" data-id="${s.userId}">
+                            <option value="tyro" ${s.tier === 'tyro' ? 'selected' : ''}>Tyro</option>
+                            <option value="initiate" ${s.tier === 'initiate' ? 'selected' : ''}>Initiate</option>
+                            <option value="adept" ${s.tier === 'adept' ? 'selected' : ''}>Adept</option>
+                        </select>
+                    </td>
+                    <td class="td-date">${new Date(s.lastSeen).toLocaleDateString()}</td>
+                    <td>${s.tierOverride ? '<span class="override-badge">Manual</span>' : '—'}</td>
+                </tr>`).join('')}
+            </tbody>
+        </table>`;
+
+        // Tier override
+        wrap.querySelectorAll('.tier-select').forEach(sel => {
+            sel.addEventListener('change', async () => {
+                try {
+                    await api(`/.netlify/functions/admin-students?id=${sel.dataset.id}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ tier: sel.value }),
+                    });
+                    sel.style.borderColor = 'var(--gold)';
+                    setTimeout(() => sel.style.borderColor = '', 1500);
+                } catch (err) {
+                    alert('Failed to update tier: ' + err.message);
+                }
+            });
+        });
+
+    } catch (err) {
+        document.getElementById('students-table-wrap').innerHTML = `<p class="error-state">Failed to load students: ${err.message}</p>`;
+    }
+}
+
+// ── INIT ──
+document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => showPanel(btn.dataset.panel));
+});
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+    document.cookie = 'ttao_admin=; Path=/; Max-Age=0';
+    window.location.href = '/';
+});
+
+showPanel('articles-list');
+</script>
+
+</body>
+</html>

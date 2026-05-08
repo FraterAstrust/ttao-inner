@@ -1,7 +1,8 @@
 const jwt = require("jsonwebtoken");
+const { getStore } = require("@netlify/blobs");
 
 // Add your Patreon user ID here to always get adept access
-const ADMIN_IDS = ["57190794"];
+const ADMIN_IDS = ["YOUR_PATREON_USER_ID"];
 
 function getTier(amountCents, userId) {
   if (ADMIN_IDS.includes(userId)) return "adept";
@@ -80,6 +81,24 @@ exports.handler = async (event) => {
       : 0;
 
     const tier = getTier(amountCents, user.id);
+
+    // Register or update student record in Blobs
+    try {
+      const store = getStore("students");
+      const existing = await store.get(user.id, { type: "json" }).catch(() => null);
+      await store.setJSON(user.id, {
+        userId: user.id,
+        email: user.attributes?.email,
+        name: user.attributes?.full_name,
+        tier,
+        tierOverride: existing?.tierOverride || false,
+        firstSeen: existing?.firstSeen || new Date().toISOString(),
+        lastSeen: new Date().toISOString(),
+      });
+    } catch (blobErr) {
+      console.error("Blob write error:", blobErr);
+      // Non-fatal — continue with auth
+    }
 
     // Sign JWT
     const token = jwt.sign(
