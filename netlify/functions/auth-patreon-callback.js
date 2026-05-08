@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const { getStore } = require("@netlify/blobs");
 
 // Add your Patreon user ID here to always get adept access
-const ADMIN_IDS = ["YOUR_PATREON_USER_ID"];
+const ADMIN_IDS = ["57190794"];
 
 function getTier(amountCents, userId) {
   if (ADMIN_IDS.includes(userId)) return "adept";
