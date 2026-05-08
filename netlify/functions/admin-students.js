@@ -12,17 +12,24 @@ function verifyAdmin(event) {
   }
 }
 
+function getStudentsStore() {
+  return getStore({
+    name: "students",
+    siteID: process.env.NETLIFY_SITE_ID,
+    token: process.env.NETLIFY_TOKEN,
+  });
+}
+
 exports.handler = async (event) => {
   const admin = verifyAdmin(event);
   if (!admin) {
     return { statusCode: 401, body: JSON.stringify({ error: "Unauthorized" }) };
   }
 
-  const store = getStore("students");
+  const store = getStudentsStore();
   const method = event.httpMethod;
 
   try {
-    // GET — list all students
     if (method === "GET") {
       const { blobs } = await store.list();
       const students = await Promise.all(
@@ -35,7 +42,6 @@ exports.handler = async (event) => {
       return { statusCode: 200, body: JSON.stringify(students) };
     }
 
-    // PUT — override a student's tier
     if (method === "PUT") {
       const id = event.queryStringParameters?.id;
       if (!id) return { statusCode: 400, body: JSON.stringify({ error: "id required" }) };

@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const { getStore } = require("@netlify/blobs");
 
 // Add your Patreon user ID here to always get adept access
-const ADMIN_IDS = ["57190794"];
+const ADMIN_IDS = ["YOUR_PATREON_USER_ID"];
 
 function getTier(amountCents, userId) {
   if (ADMIN_IDS.includes(userId)) return "adept";
@@ -84,7 +84,11 @@ exports.handler = async (event) => {
 
     // Register or update student record in Blobs
     try {
-      const store = getStore("students");
+      const store = getStore({
+        name: "students",
+        siteID: process.env.NETLIFY_SITE_ID,
+        token: process.env.NETLIFY_TOKEN,
+      });
       const existing = await store.get(user.id, { type: "json" }).catch(() => null);
       await store.setJSON(user.id, {
         userId: user.id,
