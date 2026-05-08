@@ -21,6 +21,9 @@
     </svg>
 </div>
 
+<!-- SIDEBAR OVERLAY -->
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
 <!-- SIDEBAR -->
 <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -66,7 +69,7 @@
 </div>
 
 <script>
-// ── JWT DECODE (no library needed for reading payload) ──
+// ── JWT DECODE ──
 function parseJWT(token) {
     try {
         const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -268,6 +271,17 @@ function glyphCard(glyph, name, desc) {
     return `<div class="glyph-card"><div class="glyph-symbol">${glyph}</div><div class="glyph-name">${name}</div><div class="glyph-desc">${desc}</div></div>`;
 }
 
+// ── SIDEBAR HELPERS ──
+function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebar-overlay').classList.add('open');
+}
+
 // ── INIT ──
 function init() {
     const token = getCookie('ttao_session');
@@ -308,9 +322,7 @@ function init() {
         <span class="user-name">${payload.name || payload.email || 'Student'}</span>`;
 
     // Nav click handler
-    let active = 'welcome';
     function showPanel(id) {
-        active = id;
         document.querySelectorAll('.nav-item').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.panel === id);
         });
@@ -321,7 +333,10 @@ function init() {
 
     nav.addEventListener('click', e => {
         const btn = e.target.closest('.nav-item');
-        if (btn) showPanel(btn.dataset.panel);
+        if (!btn) return;
+        showPanel(btn.dataset.panel);
+        // Close sidebar on mobile after navigation
+        if (window.innerWidth <= 768) closeSidebar();
     });
 
     // Logout
@@ -331,9 +346,8 @@ function init() {
     });
 
     // Mobile menu toggle
-    document.getElementById('menu-toggle').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('open');
-    });
+    document.getElementById('menu-toggle').addEventListener('click', openSidebar);
+    document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
 
     // Initial panel
     showPanel('welcome');

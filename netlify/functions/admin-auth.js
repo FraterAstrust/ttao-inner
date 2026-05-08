@@ -1,7 +1,9 @@
 const jwt = require("jsonwebtoken");
 
-// Only these Patreon IDs can access the admin panel
-const ADMIN_IDS = ["57190794"];
+function getAdminIds() {
+  const raw = process.env.PATREON_ADMIN_IDS || "";
+  return raw.split(",").map(id => id.trim()).filter(Boolean);
+}
 
 exports.handler = async (event) => {
   const { code, error } = event.queryStringParameters || {};
@@ -63,7 +65,7 @@ exports.handler = async (event) => {
     }
 
     // Step 4: Check admin whitelist
-    if (!ADMIN_IDS.includes(user.id)) {
+    if (!getAdminIds().includes(user.id)) {
       return { statusCode: 302, headers: { Location: "/admin?error=unauthorized" }, body: "" };
     }
 

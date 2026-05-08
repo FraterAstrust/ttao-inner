@@ -12,7 +12,10 @@
 </head>
 <body>
 
-<nav class="sidebar">
+<!-- SIDEBAR OVERLAY -->
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <div class="sidebar-emblem" aria-hidden="true">
             <svg width="32" height="32" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
@@ -47,6 +50,7 @@
 
 <div class="main-wrap">
     <header class="dash-header">
+        <button class="menu-toggle" id="menu-toggle" aria-label="Toggle menu">☰</button>
         <div class="dash-header-title">Inner Academy — Administration</div>
         <div class="dash-admin-badge">ASTRUST</div>
     </header>
@@ -125,6 +129,17 @@ if (!adminPayload || adminPayload.role !== 'admin') {
     window.location.href = '/auth/admin';
 }
 
+// ── SIDEBAR HELPERS ──
+function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebar-overlay').classList.add('open');
+}
+
 // ── API HELPERS ──
 async function api(path, options = {}) {
     const res = await fetch(path, {
@@ -153,6 +168,7 @@ function setActiveNav(id) {
 function showPanel(id) {
     setActiveNav(id);
     PANELS[id]?.();
+    if (window.innerWidth <= 768) closeSidebar();
 }
 
 // ── ARTICLES LIST ──
@@ -236,7 +252,6 @@ async function renderEditor(id) {
     const publishedEl = document.getElementById('ed-published');
     const previewEl = document.getElementById('ed-preview');
 
-    // Load existing if editing
     if (id) {
         try {
             const article = await api(`/.netlify/functions/admin-articles?id=${id}`);
@@ -250,12 +265,10 @@ async function renderEditor(id) {
         }
     }
 
-    // Live preview
     contentEl.addEventListener('input', () => {
         previewEl.innerHTML = marked.parse(contentEl.value);
     });
 
-    // Save
     document.getElementById('ed-save').addEventListener('click', async () => {
         const status = document.getElementById('save-status');
         const payload = {
@@ -331,7 +344,6 @@ async function renderStudents() {
             </tbody>
         </table>`;
 
-        // Tier override
         wrap.querySelectorAll('.tier-select').forEach(sel => {
             sel.addEventListener('change', async () => {
                 try {
@@ -361,6 +373,9 @@ document.getElementById('logout-btn').addEventListener('click', () => {
     document.cookie = 'ttao_admin=; Path=/; Max-Age=0';
     window.location.href = '/';
 });
+
+document.getElementById('menu-toggle').addEventListener('click', openSidebar);
+document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
 
 showPanel('articles-list');
 </script>

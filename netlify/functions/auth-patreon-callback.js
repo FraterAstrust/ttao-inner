@@ -1,11 +1,13 @@
 const jwt = require("jsonwebtoken");
 const { getStore } = require("@netlify/blobs");
 
-// Add your Patreon user ID here to always get adept access
-const ADMIN_IDS = ["YOUR_PATREON_USER_ID"];
+function getAdminIds() {
+  const raw = process.env.PATREON_ADMIN_IDS || "";
+  return raw.split(",").map(id => id.trim()).filter(Boolean);
+}
 
 function getTier(amountCents, userId) {
-  if (ADMIN_IDS.includes(userId)) return "adept";
+  if (getAdminIds().includes(userId)) return "adept";
   if (amountCents >= 1500) return "adept";
   if (amountCents >= 500) return "initiate";
   return "tyro";
@@ -116,7 +118,6 @@ exports.handler = async (event) => {
       { expiresIn: "7d" }
     );
 
-    // Set cookie and redirect to dashboard
     return {
       statusCode: 302,
       headers: {
