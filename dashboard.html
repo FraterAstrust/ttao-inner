@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
     <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
@@ -21,10 +22,8 @@
     </svg>
 </div>
 
-<!-- SIDEBAR OVERLAY -->
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-<!-- SIDEBAR -->
 <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <div class="sidebar-emblem" aria-hidden="true">
@@ -37,305 +36,355 @@
         </div>
         <div class="sidebar-title">TTAO</div>
     </div>
-
-    <div class="sidebar-tier" id="sidebar-tier">
-        <!-- Populated by JS -->
-    </div>
-
-    <ul class="sidebar-nav" id="sidebar-nav">
-        <!-- Populated by JS -->
-    </ul>
-
+    <div class="sidebar-tier" id="sidebar-tier"></div>
+    <ul class="sidebar-nav" id="sidebar-nav"></ul>
     <div class="sidebar-footer">
         <button class="logout-btn" id="logout-btn">⬡ Sign Out</button>
     </div>
 </nav>
 
-<!-- MAIN -->
 <div class="main-wrap">
-
     <header class="dash-header">
         <button class="menu-toggle" id="menu-toggle" aria-label="Toggle menu">☰</button>
-        <div class="dash-header-title" id="dash-header-title">The Inner Academy</div>
-        <div class="dash-user" id="dash-user">
-            <!-- Populated by JS -->
-        </div>
+        <div class="dash-header-title">The Inner Academy</div>
+        <div class="dash-user" id="dash-user"></div>
     </header>
-
-    <main class="dash-content" id="dash-content">
-        <!-- Populated by JS -->
-    </main>
-
+    <main class="dash-content" id="dash-content"></main>
 </div>
 
 <script>
-// ── JWT DECODE ──
 function parseJWT(token) {
     try {
-        const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-        return JSON.parse(atob(base64));
-    } catch {
-        return null;
-    }
+        return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    } catch { return null; }
 }
-
 function getCookie(name) {
-    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-    return match ? match[2] : null;
+    const m = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    return m ? m[2] : null;
 }
 
-// ── TIER CONFIG ──
+// ── CONSTANTS ──
+const TIER_RANK = { tyro: 0, initiate: 1, adept: 2 };
+
 const TIERS = {
-    tyro: {
-        label: 'Tyro',
-        color: 'var(--text-dim)',
-        nav: [
-            { icon: '⌂', label: 'Welcome', id: 'welcome' },
-            { icon: '📜', label: 'Articles', id: 'articles' },
-            { icon: '⬡', label: 'Upgrade', id: 'upgrade' },
-        ]
-    },
-    initiate: {
-        label: 'Initiate',
-        color: 'var(--gold-dim)',
-        nav: [
-            { icon: '⌂', label: 'Welcome', id: 'welcome' },
-            { icon: '📜', label: 'Articles', id: 'articles' },
-            { icon: '⚗', label: 'Lesson Modules', id: 'lessons' },
-            { icon: '🔗', label: 'Discord', id: 'discord' },
-            { icon: '⬡', label: 'Upgrade', id: 'upgrade' },
-        ]
-    },
-    adept: {
-        label: 'Adept',
-        color: 'var(--gold)',
-        nav: [
-            { icon: '⌂', label: 'Welcome', id: 'welcome' },
-            { icon: '📜', label: 'Articles', id: 'articles' },
-            { icon: '⚗', label: 'Lesson Modules', id: 'lessons' },
-            { icon: '🧪', label: 'Lab Guides', id: 'labs' },
-            { icon: '⌬', label: 'Glyphic Cybermancy', id: 'cybermancy' },
-            { icon: '🔗', label: 'Discord', id: 'discord' },
-            { icon: '🦡', label: 'Stoat Community', id: 'stoat' },
-        ]
-    }
+    tyro:     { label: 'Tyro',     color: 'var(--text-dim)',  nav: ['welcome','articles','upgrade'] },
+    initiate: { label: 'Initiate', color: 'var(--gold-dim)', nav: ['welcome','articles','lessons','discord','upgrade'] },
+    adept:    { label: 'Adept',    color: 'var(--gold)',      nav: ['welcome','articles','lessons','labs','cybermancy','discord','stoat'] },
 };
+
+const NAV_ITEMS = {
+    welcome:    { icon: '⌂',  label: 'Welcome' },
+    articles:   { icon: '📜', label: 'Articles' },
+    lessons:    { icon: '⚗',  label: 'Lesson Modules' },
+    labs:       { icon: '🧪', label: 'Lab Guides' },
+    cybermancy: { icon: '⌬',  label: 'Glyphic Cybermancy' },
+    discord:    { icon: '🔗', label: 'Discord' },
+    stoat:      { icon: '🦡', label: 'Stoat Community' },
+    upgrade:    { icon: '⬡',  label: 'Upgrade' },
+};
+
+// ── TIER-GATED CONTENT RENDERER ──
+// In your markdown, use [gate:initiate] or [gate:adept] on its own line
+// to mark where content becomes restricted. Everything before the first
+// gate is visible to all. Sections after a gate require that tier or above.
+function renderTieredContent(markdown, userTier) {
+    const userRank = TIER_RANK[userTier] ?? 0;
+    const lines = markdown.split('\n');
+    const sections = [];
+    let curTier = 'tyro', curLines = [];
+
+    for (const line of lines) {
+        const m = line.match(/^\[gate:(tyro|initiate|adept)\]$/);
+        if (m) {
+            sections.push({ tier: curTier, lines: curLines });
+            curTier = m[1]; curLines = [];
+        } else {
+            curLines.push(line);
+        }
+    }
+    sections.push({ tier: curTier, lines: curLines });
+
+    return sections.map(sec => {
+        const content = sec.lines.join('\n').trim();
+        if (!content) return '';
+        if ((TIER_RANK[sec.tier] ?? 0) <= userRank) {
+            return `<div class="article-section">${marked.parse(content)}</div>`;
+        }
+        const label = sec.tier.charAt(0).toUpperCase() + sec.tier.slice(1);
+        return `<div class="article-gate">
+            <div class="gate-icon">⚿</div>
+            <div class="gate-title">Continue as ${label}</div>
+            <div class="gate-desc">This section requires ${label} membership to read.</div>
+            <a href="https://www.patreon.com/Astrust" class="btn btn-gold" target="_blank" rel="noopener">Upgrade on Patreon</a>
+        </div>`;
+    }).join('');
+}
+
+// ── CONTENT LIST LOADER ──
+function loadContentList(contentType, wrapId, renderCard, panelId) {
+    fetch(`/.netlify/functions/articles?contentType=${contentType}`)
+        .then(r => { if (!r.ok) throw r.status; return r.json(); })
+        .then(list => {
+            const wrap = document.getElementById(wrapId);
+            if (!wrap) return;
+            if (!Array.isArray(list) || !list.length) {
+                wrap.innerHTML = '<p style="opacity:0.5;font-style:italic">Nothing published in this section yet.</p>';
+                return;
+            }
+            const gridClass = contentType === 'cybermancy' ? 'glyph-grid' : 'card-grid';
+            wrap.innerHTML = `<div class="${gridClass}">${list.map(renderCard).join('')}</div>`;
+            wrap.addEventListener('click', e => {
+                const card = e.target.closest('[data-content-id]');
+                if (card) showContent(card.dataset.contentId, panelId);
+            });
+        })
+        .catch(err => {
+            const wrap = document.getElementById(wrapId);
+            if (wrap) wrap.innerHTML = `<p class="error-state">Failed to load: ${err}</p>`;
+        });
+}
+
+// ── CARD RENDERERS ──
+function renderArticleCard(item) {
+    return `<div class="card" data-content-id="${item.id}">
+        <div class="card-title">${item.title}</div>
+        <div class="card-desc">${item.excerpt || ''}</div>
+        <span class="card-link">Read →</span>
+    </div>`;
+}
+function renderModuleCard(item) {
+    return `<div class="card" data-content-id="${item.id}">
+        ${item.moduleNumber ? `<div class="card-label">${item.moduleNumber}</div>` : ''}
+        <div class="card-title">${item.title}</div>
+        <div class="card-desc">${item.excerpt || ''}</div>
+        <span class="card-link">Begin →</span>
+    </div>`;
+}
+function renderLabCard(item) {
+    return `<div class="card" data-content-id="${item.id}">
+        ${item.bulletinNumber ? `<div class="card-label">${item.bulletinNumber}</div>` : ''}
+        <div class="card-title">${item.title}</div>
+        <div class="card-desc">${item.excerpt || ''}</div>
+        <span class="card-link">Begin →</span>
+    </div>`;
+}
+function renderCybermancyCard(item) {
+    return `<div class="glyph-card" data-content-id="${item.id}" style="cursor:pointer">
+        <div class="glyph-symbol">${item.glyph || '◎'}</div>
+        <div class="glyph-name">${item.title}</div>
+        <div class="glyph-desc">${item.excerpt || ''}</div>
+    </div>`;
+}
 
 // ── CONTENT PANELS ──
-const CONTENT = {
-    welcome: (user, tier) => `
-        <div class="panel fade-in">
-            <div class="panel-eyebrow">Welcome</div>
-            <h1 class="panel-title">Salve, ${user.name || 'Soror/Frater'}.</h1>
-            <p class="panel-lead">You have entered the Inner Academy of the Ternary Alchemical Order as a <strong>${TIERS[tier].label}</strong>. The Great Work awaits.</p>
-            ${tier === 'tyro' ? `
-            <div class="upgrade-notice">
-                <p>Unlock the full curriculum — lesson modules, lab guides, and community access — by upgrading your Patreon membership.</p>
-                <a href="https://www.patreon.com/Astrust" class="btn btn-gold" target="_blank" rel="noopener">Upgrade on Patreon</a>
-            </div>` : ''}
-            ${tier === 'initiate' ? `
-            <div class="upgrade-notice">
-                <p>Adept tier unlocks lab guides, Glyphic Cybermancy modules, and the Stoat community.</p>
-                <a href="https://www.patreon.com/Astrust" class="btn btn-gold" target="_blank" rel="noopener">Become an Adept</a>
-            </div>` : ''}
-        </div>`,
-
-    articles: (user, tier) => `
-        <div class="panel fade-in">
-            <div class="panel-eyebrow">Articles</div>
-            <h1 class="panel-title">The Archive</h1>
-            <p class="panel-lead">Foundational writings of the Order, open to all enrolled students.</p>
-            <div class="card-grid">
-                ${articleCard('On the Nature of the Three Principles', 'An introduction to Sulfur, Mercury, and Salt as the pillars of alchemical philosophy.')}
-                ${articleCard('The Silent Vigil', 'The practice of daily contemplative observation as the first discipline of the Work.')}
-                ${articleCard('Ora et Labore', 'Prayer and Work — the dual obligations of the sincere student.')}
-                ${tier === 'tyro' ? lockedCard('Plant Alchemy — First Operations', 'Upgrade to Initiate to unlock.') : articleCard('Plant Alchemy — First Operations', 'An overview of spagyric method applied to the plant kingdom.')}
-                ${tier === 'tyro' ? lockedCard('The Astrological Wheel', 'Upgrade to Initiate to unlock.') : articleCard('The Astrological Wheel', 'Mapping planetary correspondences across the twelve houses.')}
-            </div>
-        </div>`,
-
-    lessons: (user, tier) => `
-        <div class="panel fade-in">
-            <div class="panel-eyebrow">Lesson Modules</div>
-            <h1 class="panel-title">The Curriculum</h1>
-            <p class="panel-lead">Structured study modules progressing from foundation to advanced practice.</p>
-            <div class="card-grid">
-                ${moduleCard('Module I', 'Foundations of Alchemy', 'The Three Principles, the Four Elements, and the philosophical framework of the Work.')}
-                ${moduleCard('Module II', 'Plant Kingdom', 'Spagyric extraction, fermentation, and the preparation of plant stones.')}
-                ${moduleCard('Module III', 'Planetary Correspondences', 'Linking metals, plants, and timing to the seven classical planets.')}
-                ${tier === 'adept' ? moduleCard('Module IV', 'Animal Kingdom', 'Advanced operations within the animal realm.') : lockedCard('Module IV — Animal Kingdom', 'Upgrade to Adept to unlock.')}
-                ${tier === 'adept' ? moduleCard('Module V', 'Metal Alchemy', 'The transmutation of metals and the preparation of metallic medicines.') : lockedCard('Module V — Metal Alchemy', 'Upgrade to Adept to unlock.')}
-            </div>
-        </div>`,
-
-    labs: (user, tier) => `
-        <div class="panel fade-in">
-            <div class="panel-eyebrow">Laboratory Guides</div>
-            <h1 class="panel-title">The Alchemical Laboratories</h1>
-            <p class="panel-lead">Step-by-step practical bulletins for Plant, Animal, and Metal operations.</p>
-            <div class="card-grid">
-                ${moduleCard('Bulletin No. 1', 'Plant — Introductory Operations', 'First extraction procedures and the preparation of the Plant Stone.')}
-                ${moduleCard('Bulletin No. 2', 'Spagyric Tinctures', 'Full process from maceration through calcination and cohobation.')}
-                ${moduleCard('Bulletin No. 3', 'Animal Kingdom — Introductory', 'First operations within the animal realm.')}
-                ${moduleCard('Bulletin No. 4', 'Metal Operations', 'High-temperature work at 1750°C — Ora et Labore.')}
-            </div>
-        </div>`,
-
-    cybermancy: (user, tier) => `
-        <div class="panel fade-in">
-            <div class="panel-eyebrow">Glyphic Cybermancy</div>
-            <h1 class="panel-title">The Cybermantic System</h1>
-            <p class="panel-lead">Custom-engineered systems blending alchemical symbolism and digital technology.</p>
-            <div class="glyph-grid">
-                ${glyphCard('+ summ', 'Fusion', 'The operation of synthesis — combining two principles into a unified whole.')}
-                ${glyphCard('∆ memo', 'Memory', 'Encoding and preserving essential signatures across transformations.')}
-                ${glyphCard('Σ stru', 'Structure', 'The scaffolding upon which all cybermantic operations are built.')}
-                ${glyphCard('◎ circ', 'Circulation', 'The recycling of essence through iterative refinement.')}
-            </div>
-        </div>`,
-
-    discord: (user, tier) => `
-        <div class="panel fade-in">
-            <div class="panel-eyebrow">Community</div>
-            <h1 class="panel-title">Discord Sanctums</h1>
-            <p class="panel-lead">Gated channels for enrolled students of the Order.</p>
-            <div class="link-card">
-                <div class="link-card-icon">💬</div>
-                <div class="link-card-body">
-                    <div class="link-card-title">Join the Discord</div>
-                    <div class="link-card-desc">Access tier-gated channels for discussion, questions, and community practice.</div>
-                    <a href="#" class="btn btn-cyan" target="_blank" rel="noopener">Open Discord</a>
-                </div>
-            </div>
-        </div>`,
-
-    stoat: (user, tier) => `
-        <div class="panel fade-in">
-            <div class="panel-eyebrow">Community</div>
-            <h1 class="panel-title">Stoat Community</h1>
-            <p class="panel-lead">The Order's home on Stoat — reserved for Adept members.</p>
-            <div class="link-card">
-                <div class="link-card-icon">🦡</div>
-                <div class="link-card-body">
-                    <div class="link-card-title">Join the Stoat</div>
-                    <div class="link-card-desc">Deeper discussion, long-form posts, and archival lore for advanced students.</div>
-                    <a href="#" class="btn btn-cyan" target="_blank" rel="noopener">Open Stoat</a>
-                </div>
-            </div>
-        </div>`,
-
-    upgrade: (user, tier) => `
-        <div class="panel fade-in">
-            <div class="panel-eyebrow">Upgrade</div>
-            <h1 class="panel-title">Advance Your Degree</h1>
-            <p class="panel-lead">Deepen your access to the Work.</p>
-            <div class="upgrade-grid">
+// All dynamic panels: no hardcoded content, everything comes from the API
+function buildContent(payload, tier) {
+    return {
+        welcome: () => `
+            <div class="panel fade-in">
+                <div class="panel-eyebrow">Welcome</div>
+                <h1 class="panel-title">Salve, ${payload.name || 'Soror/Frater'}.</h1>
+                <p class="panel-lead">You have entered the Inner Academy of the Ternary Alchemical Order as a <strong>${TIERS[tier].label}</strong>. The Great Work awaits.</p>
                 ${tier === 'tyro' ? `
-                <div class="upgrade-card highlight">
-                    <div class="upgrade-tier">Initiate</div>
-                    <div class="upgrade-price">$5 <span>/mo</span></div>
-                    <ul class="upgrade-perks">
-                        <li>All Tyro content</li>
-                        <li>Full lesson modules</li>
-                        <li>Step-by-step alchemical guides</li>
-                        <li>Gated Discord channels</li>
-                    </ul>
-                    <a href="https://www.patreon.com/Astrust" class="btn btn-gold" target="_blank">Become an Initiate</a>
+                <div class="upgrade-notice">
+                    <p>Unlock the full curriculum — lesson modules, lab guides, and community access — by upgrading your Patreon membership.</p>
+                    <a href="https://www.patreon.com/Astrust" class="btn btn-gold" target="_blank" rel="noopener">Upgrade on Patreon</a>
                 </div>` : ''}
-                <div class="upgrade-card ${tier === 'initiate' ? 'highlight' : ''}">
-                    <div class="upgrade-tier">Adept</div>
-                    <div class="upgrade-price">$15 <span>/mo</span></div>
-                    <ul class="upgrade-perks">
-                        <li>All Initiate content</li>
-                        <li>Full lab guide bulletins</li>
-                        <li>Glyphic Cybermancy modules</li>
-                        <li>Stoat community access</li>
-                    </ul>
-                    <a href="https://www.patreon.com/Astrust" class="btn btn-gold" target="_blank">Become an Adept</a>
+                ${tier === 'initiate' ? `
+                <div class="upgrade-notice">
+                    <p>Adept tier unlocks lab guides, Glyphic Cybermancy modules, and the Stoat community.</p>
+                    <a href="https://www.patreon.com/Astrust" class="btn btn-gold" target="_blank" rel="noopener">Become an Adept</a>
+                </div>` : ''}
+            </div>`,
+
+        articles: () => {
+            requestAnimationFrame(() => loadContentList('articles', 'articles-wrap', renderArticleCard, 'articles'));
+            return `<div class="panel fade-in">
+                <div class="panel-eyebrow">Articles</div>
+                <h1 class="panel-title">The Archive</h1>
+                <p class="panel-lead">Foundational writings of the Order, accessible to enrolled students.</p>
+                <div id="articles-wrap"><div class="loading">Loading...</div></div>
+            </div>`;
+        },
+
+        lessons: () => {
+            requestAnimationFrame(() => loadContentList('lessons', 'lessons-wrap', renderModuleCard, 'lessons'));
+            return `<div class="panel fade-in">
+                <div class="panel-eyebrow">Lesson Modules</div>
+                <h1 class="panel-title">The Curriculum</h1>
+                <p class="panel-lead">Structured study modules progressing from foundation to advanced practice.</p>
+                <div id="lessons-wrap"><div class="loading">Loading...</div></div>
+            </div>`;
+        },
+
+        labs: () => {
+            requestAnimationFrame(() => loadContentList('labs', 'labs-wrap', renderLabCard, 'labs'));
+            return `<div class="panel fade-in">
+                <div class="panel-eyebrow">Laboratory Guides</div>
+                <h1 class="panel-title">The Alchemical Laboratories</h1>
+                <p class="panel-lead">Step-by-step practical bulletins for Plant, Animal, and Metal operations.</p>
+                <div id="labs-wrap"><div class="loading">Loading...</div></div>
+            </div>`;
+        },
+
+        cybermancy: () => {
+            requestAnimationFrame(() => loadContentList('cybermancy', 'cybermancy-wrap', renderCybermancyCard, 'cybermancy'));
+            return `<div class="panel fade-in">
+                <div class="panel-eyebrow">Glyphic Cybermancy</div>
+                <h1 class="panel-title">The Cybermantic System</h1>
+                <p class="panel-lead">Custom-engineered systems blending alchemical symbolism and digital technology.</p>
+                <div id="cybermancy-wrap"><div class="loading">Loading...</div></div>
+            </div>`;
+        },
+
+        discord: () => `
+            <div class="panel fade-in">
+                <div class="panel-eyebrow">Community</div>
+                <h1 class="panel-title">Discord Sanctums</h1>
+                <p class="panel-lead">Gated channels for enrolled students of the Order.</p>
+                <div class="link-card">
+                    <div class="link-card-icon">💬</div>
+                    <div class="link-card-body">
+                        <div class="link-card-title">Join the Discord</div>
+                        <div class="link-card-desc">Access tier-gated channels for discussion, questions, and community practice.</div>
+                        <a href="#" class="btn btn-cyan" target="_blank" rel="noopener">Open Discord</a>
+                    </div>
                 </div>
-            </div>
-        </div>`,
-};
+            </div>`,
 
-// ── CARD HELPERS ──
-function articleCard(title, desc) {
-    return `<div class="card"><div class="card-title">${title}</div><div class="card-desc">${desc}</div><a href="#" class="card-link">Read →</a></div>`;
-}
-function moduleCard(label, title, desc) {
-    return `<div class="card"><div class="card-label">${label}</div><div class="card-title">${title}</div><div class="card-desc">${desc}</div><a href="#" class="card-link">Begin →</a></div>`;
-}
-function lockedCard(title, reason) {
-    return `<div class="card card-locked"><div class="lock-icon">⚿</div><div class="card-title">${title}</div><div class="card-desc">${reason}</div></div>`;
-}
-function glyphCard(glyph, name, desc) {
-    return `<div class="glyph-card"><div class="glyph-symbol">${glyph}</div><div class="glyph-name">${name}</div><div class="glyph-desc">${desc}</div></div>`;
-}
+        stoat: () => `
+            <div class="panel fade-in">
+                <div class="panel-eyebrow">Community</div>
+                <h1 class="panel-title">Stoat Community</h1>
+                <p class="panel-lead">The Order's home on Stoat — reserved for Adept members.</p>
+                <div class="link-card">
+                    <div class="link-card-icon">🦡</div>
+                    <div class="link-card-body">
+                        <div class="link-card-title">Join the Stoat</div>
+                        <div class="link-card-desc">Deeper discussion, long-form posts, and archival lore for advanced students.</div>
+                        <a href="#" class="btn btn-cyan" target="_blank" rel="noopener">Open Stoat</a>
+                    </div>
+                </div>
+            </div>`,
 
-// ── SIDEBAR HELPERS ──
-function closeSidebar() {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sidebar-overlay').classList.remove('open');
-}
-
-function openSidebar() {
-    document.getElementById('sidebar').classList.add('open');
-    document.getElementById('sidebar-overlay').classList.add('open');
+        upgrade: () => `
+            <div class="panel fade-in">
+                <div class="panel-eyebrow">Upgrade</div>
+                <h1 class="panel-title">Advance Your Degree</h1>
+                <p class="panel-lead">Deepen your access to the Work.</p>
+                <div class="upgrade-grid">
+                    ${tier === 'tyro' ? `
+                    <div class="upgrade-card highlight">
+                        <div class="upgrade-tier">Initiate</div>
+                        <div class="upgrade-price">$5 <span>/mo</span></div>
+                        <ul class="upgrade-perks">
+                            <li>All Tyro content</li>
+                            <li>Full lesson modules</li>
+                            <li>Step-by-step alchemical guides</li>
+                            <li>Gated Discord channels</li>
+                        </ul>
+                        <a href="https://www.patreon.com/Astrust" class="btn btn-gold" target="_blank">Become an Initiate</a>
+                    </div>` : ''}
+                    <div class="upgrade-card ${tier === 'initiate' ? 'highlight' : ''}">
+                        <div class="upgrade-tier">Adept</div>
+                        <div class="upgrade-price">$15 <span>/mo</span></div>
+                        <ul class="upgrade-perks">
+                            <li>All Initiate content</li>
+                            <li>Full lab guide bulletins</li>
+                            <li>Glyphic Cybermancy modules</li>
+                            <li>Stoat community access</li>
+                        </ul>
+                        <a href="https://www.patreon.com/Astrust" class="btn btn-gold" target="_blank">Become an Adept</a>
+                    </div>
+                </div>
+            </div>`,
+    };
 }
 
 // ── INIT ──
 function init() {
     const token = getCookie('ttao_session');
-
-    if (!token) {
-        window.location.href = '/?auth=required';
-        return;
-    }
+    if (!token) { window.location.href = '/?auth=required'; return; }
 
     const payload = parseJWT(token);
+    if (!payload || payload.exp * 1000 < Date.now()) { window.location.href = '/?auth=expired'; return; }
 
-    if (!payload || payload.exp * 1000 < Date.now()) {
-        window.location.href = '/?auth=expired';
-        return;
+    // Preview mode: admin can open dashboard with ?preview_tier= to simulate any tier
+    const adminCookie = getCookie('ttao_admin');
+    const previewParam = new URLSearchParams(window.location.search).get('preview_tier');
+    const isPreview = !!(adminCookie && previewParam && TIER_RANK[previewParam] !== undefined);
+    const tier = isPreview ? previewParam : (payload.tier || 'tyro');
+
+    if (isPreview) {
+        const banner = document.createElement('div');
+        banner.className = 'preview-banner';
+        banner.innerHTML = `⚗ Preview Mode — Viewing as <strong>${tier.toUpperCase()}</strong> &nbsp;·&nbsp; <a href="/admin">← Admin Panel</a>`;
+        document.body.prepend(banner);
+        document.querySelector('.main-wrap').style.marginTop = '30px';
     }
 
-    const tier = payload.tier || 'tyro';
-    const tierConfig = TIERS[tier];
+    const tierConfig = TIERS[tier] || TIERS.tyro;
+    const CONTENT = buildContent(payload, tier);
 
     // Sidebar tier badge
-    document.getElementById('sidebar-tier').innerHTML = `
-        <span class="tier-badge" style="color:${tierConfig.color}">
-            ${tierConfig.label}
-        </span>`;
+    document.getElementById('sidebar-tier').innerHTML =
+        `<span class="tier-badge" style="color:${tierConfig.color}">${tierConfig.label}</span>`;
 
     // Sidebar nav
     const nav = document.getElementById('sidebar-nav');
-    nav.innerHTML = tierConfig.nav.map(item => `
+    nav.innerHTML = tierConfig.nav.map(id => `
         <li>
-            <button class="nav-item" data-panel="${item.id}">
-                <span class="nav-icon">${item.icon}</span>
-                <span class="nav-label">${item.label}</span>
+            <button class="nav-item" data-panel="${id}">
+                <span class="nav-icon">${NAV_ITEMS[id].icon}</span>
+                <span class="nav-label">${NAV_ITEMS[id].label}</span>
             </button>
         </li>`).join('');
 
-    // User header
-    document.getElementById('dash-user').innerHTML = `
-        <span class="user-name">${payload.name || payload.email || 'Student'}</span>`;
+    document.getElementById('dash-user').innerHTML =
+        `<span class="user-name">${payload.name || payload.email || 'Student'}</span>`;
 
-    // Nav click handler
+    // ── SHOW PANEL ──
     function showPanel(id) {
-        document.querySelectorAll('.nav-item').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.panel === id);
-        });
+        document.querySelectorAll('.nav-item').forEach(btn =>
+            btn.classList.toggle('active', btn.dataset.panel === id));
         document.getElementById('dash-content').innerHTML = CONTENT[id]
-            ? CONTENT[id](payload, tier)
-            : `<div class="panel"><p>Coming soon.</p></div>`;
+            ? CONTENT[id]()
+            : '<div class="panel"><p>Coming soon.</p></div>';
     }
 
+    // ── SHOW CONTENT (article reader for all content types) ──
+    function showContent(id, backPanel) {
+        document.getElementById('dash-content').innerHTML =
+            '<div class="panel"><div class="loading">Loading...</div></div>';
+        fetch(`/.netlify/functions/articles?id=${encodeURIComponent(id)}`)
+            .then(r => { if (!r.ok) throw r.status; return r.json(); })
+            .then(item => {
+                let eyebrow = '<div class="panel-eyebrow">Article</div>';
+                if (item.moduleNumber)  eyebrow = `<div class="panel-eyebrow">${item.moduleNumber}</div>`;
+                if (item.bulletinNumber) eyebrow = `<div class="panel-eyebrow">${item.bulletinNumber}</div>`;
+                if (item.glyph && !item.moduleNumber && !item.bulletinNumber) {
+                    eyebrow = `<div class="glyph-symbol" style="font-size:2rem;margin-bottom:0.8rem;display:block">${item.glyph}</div>`;
+                }
+                document.getElementById('dash-content').innerHTML = `
+                    <div class="panel fade-in">
+                        <button class="back-btn" id="back-btn">← Back</button>
+                        ${eyebrow}
+                        <h1 class="panel-title">${item.title}</h1>
+                        <div class="article-body">${renderTieredContent(item.content, tier)}</div>
+                    </div>`;
+                document.getElementById('back-btn').onclick = () => showPanel(backPanel || 'articles');
+            })
+            .catch(() => {
+                document.getElementById('dash-content').innerHTML =
+                    '<div class="panel"><p class="error-state">Failed to load content.</p></div>';
+            });
+    }
+
+    // Nav clicks
     nav.addEventListener('click', e => {
         const btn = e.target.closest('.nav-item');
         if (!btn) return;
         showPanel(btn.dataset.panel);
-        // Close sidebar on mobile after navigation
         if (window.innerWidth <= 768) closeSidebar();
     });
 
@@ -345,16 +394,21 @@ function init() {
         window.location.href = '/';
     });
 
-    // Mobile menu toggle
-    document.getElementById('menu-toggle').addEventListener('click', openSidebar);
+    // Mobile sidebar
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('sidebar-overlay').classList.remove('open');
+    }
+    document.getElementById('menu-toggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.add('open');
+        document.getElementById('sidebar-overlay').classList.add('open');
+    });
     document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
 
-    // Initial panel
     showPanel('welcome');
 }
 
 document.addEventListener('DOMContentLoaded', init);
 </script>
-
 </body>
 </html>

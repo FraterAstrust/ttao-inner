@@ -12,24 +12,27 @@ function verifySession(event) {
   } catch { return null; }
 }
 
+function normalizeType(item) {
+  return item.contentType || "articles";
+}
+
 function extractExcerpt(content, maxLen = 180) {
-  const stripped = content
+  return content
     .replace(/^\[gate:[^\]]+\]\s*/gm, "")
     .replace(/^#{1,6}\s+/gm, "")
     .replace(/[*_`~]/g, "")
     .replace(/\n+/g, " ")
-    .trim();
-  return stripped.length > maxLen ? stripped.slice(0, maxLen) + "…" : stripped;
+    .trim()
+    .slice(0, maxLen)
+    .replace(/\s\S*$/, "…");
 }
 
 exports.handler = async (event) => {
   const session = verifySession(event);
-  if (!session) {
-    return { statusCode: 401, body: JSON.stringify({ error: "Unauthorized" }) };
-  }
+  if (!session) return { statusCode: 401, body: JSON.stringify({ error: "Unauthorized" }) };
 
   const userRank = TIER_RANK[session.tier] ?? 0;
-  const id = event.queryStringParameters?.id;
+  const { id, contentType = "articles" } = event.queryStringParameters || {};
 
   const store = getStore({
     name: "articles",
@@ -38,35 +41,37 @@ exports.handler = async (event) => {
   });
 
   try {
-    // Single article — return full content for client-side gate rendering
+    // Single item — return full content for client-side gate rendering
     if (id) {
-      const article = await store.get(id, { type: "json" });
-      if (!article || !article.published) {
+      const item = await store.get(id, { type: "json" });
+      if (!item || !item.published) {
         return { statusCode: 404, body: JSON.stringify({ error: "Not found" }) };
       }
-      if ((TIER_RANK[article.tier] ?? 0) > userRank) {
+      if ((TIER_RANK[item.tier] ?? 0) > userRank) {
         return { statusCode: 403, body: JSON.stringify({ error: "Forbidden" }) };
       }
-      return { statusCode: 200, body: JSON.stringify(article) };
+      return { statusCode: 200, body: JSON.stringify(item) };
     }
 
-    // List — return metadata + excerpt only (no full content)
+    // List — metadata + excerpt, filtered by contentType and user tier
     const { blobs } = await store.list();
-    const articles = await Promise.all(
-      blobs.map(async (b) => {
-        const data = await store.get(b.key, { type: "json" });
-        return { id: b.key, ...data };
-      })
-    );
+    const all = await Promise.all(blobs.map(async b => {
+      const data = await store.get(b.key, { type: "json" });
+      return { id: b.key, ...data };
+    }));
 
-    const visible = articles
-      .filter(a => a.published && (TIER_RANK[a.tier] ?? 0) <= userRank)
+    const visible = all
+      .filter(a =>
+        a.published &&
+        normalizeType(a) === contentType &&
+        (TIER_RANK[a.tier] ?? 0) <= userRank
+      )
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .map(({ content, ...meta }) => ({ ...meta, excerpt: extractExcerpt(content) }));
 
     return { statusCode: 200, body: JSON.stringify(visible) };
   } catch (err) {
-    console.error("Articles error:", err);
+    console.error("articles error:", err);
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };

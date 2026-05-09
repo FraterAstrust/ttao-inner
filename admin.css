@@ -474,3 +474,38 @@ body {
     .field-row { flex-direction: column; }
     .field-sm { flex: 1; }
 }
+
+/* ── GATE MARKER (editor preview visualization) ── */
+.gate-marker {
+    display: block;
+    border: 1px dashed rgba(212,175,55,0.3);
+    border-radius: 3px;
+    padding: 0.3rem 0.8rem;
+    font-family: 'Cinzel', serif;
+    font-size: 0.62rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    text-align: center;
+    margin: 0.8rem 0;
+}
+
+/* ── GATE HINT (editor form) ── */
+.gate-hint {
+    font-size: 0.82rem;
+    opacity: 0.55;
+    font-style: italic;
+    padding: 0.5rem 0.8rem;
+    border-left: 2px solid var(--border);
+}
+.gate-hint code {
+    background: rgba(255,255,255,0.06);
+    padding: 0.1rem 0.35rem;
+    border-radius: 2px;
+    font-style: normal;
+    font-size: 0.8rem;
+    color: var(--gold-dim);
+}
+
+/* ── BTN CYAN (used in preview panel) ── */
+.btn-cyan { background: var(--cyan-dim); color: #e0faff; border: 1px solid rgba(0,209,255,0.3); }
