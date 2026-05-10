@@ -64,12 +64,13 @@ function getCookie(name) {
 }
 
 // ── CONSTANTS ──
-const TIER_RANK = { tyro: 0, initiate: 1, adept: 2 };
+const TIER_RANK = { tyro: 0, initiate: 1, adept: 2, patron: 2 };
 
 const TIERS = {
-    tyro:     { label: 'Tyro',     color: 'var(--text-dim)',  nav: ['welcome','articles','upgrade'] },
-    initiate: { label: 'Initiate', color: 'var(--gold-dim)', nav: ['welcome','articles','lessons','discord','upgrade'] },
+    tyro:     { label: 'Tyro',     color: 'var(--text-dim)',  nav: ['welcome','articles','discord','stoat','upgrade'] },
+    initiate: { label: 'Initiate', color: 'var(--gold-dim)', nav: ['welcome','articles','lessons','discord','stoat','upgrade'] },
     adept:    { label: 'Adept',    color: 'var(--gold)',      nav: ['welcome','articles','lessons','labs','cybermancy','discord','stoat'] },
+    patron:   { label: 'Patron',   color: 'var(--cyan)',      nav: ['welcome','articles','lessons','labs','cybermancy','discord','stoat'] },
 };
 
 const NAV_ITEMS = {
@@ -82,6 +83,79 @@ const NAV_ITEMS = {
     stoat:      { icon: '🦡', label: 'Stoat Community' },
     upgrade:    { icon: '⬡',  label: 'Upgrade' },
 };
+
+// ── PERSONAL SEAL & WATERMARK ──
+// simpleHash produces a short hex string unique to each Patreon user ID.
+// This appears visibly on every article — if content leaks, the seal identifies who shared it.
+function simpleHash(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = (h * 0x01000193) >>> 0;
+    }
+    return h.toString(16).toUpperCase().padStart(8, '0');
+}
+
+// encodeZW hides the user ID as invisible zero-width Unicode chars embedded in the article HTML.
+// These survive copy-paste even when the visible text looks normal.
+function encodeZW(str) {
+    return str.split('').map(c =>
+        c.charCodeAt(0).toString(2).padStart(8, '0').split('').map(b =>
+            b === '1' ? '\u200C' : '\u200B'
+        ).join('')
+    ).join('\u200D');
+}
+
+function renderPersonalSeal(payload, tier) {
+    const hash = simpleHash(payload.userId || payload.email || 'unknown');
+    const label = (TIERS[tier] || TIERS.tyro).label;
+    const isPatron = tier === 'patron';
+    return `<div class="personal-seal${isPatron ? ' patron-seal' : ''}">
+        <div class="seal-ornament">✦ ✦ ✦</div>
+        <div class="seal-main">
+            <span class="seal-sigil">⊕</span>
+            <span class="seal-name">${payload.name || 'Student'}</span>
+            <span class="seal-dot">·</span>
+            <span class="seal-tier" style="color:${(TIERS[tier]||TIERS.tyro).color}">${label}</span>
+            <span class="seal-dot">·</span>
+            <span class="seal-hash">${hash}</span>
+        </div>
+    </div>`;
+}
+
+// ── SCREENSHOT WATERMARK ──
+// Renders the member's Patreon ID and email as a diagonal repeating tile across
+// the article body at ~5% opacity — invisible to the naked eye under normal viewing
+// conditions, but immediately legible when contrast/levels are boosted in any
+// photo editing program (Photoshop, GIMP, etc.).
+// Generated once per session and reused across all article views.
+function generateWatermarkDataUrl(userId, email) {
+    try {
+        const canvas = document.createElement('canvas');
+        const W = 480, H = 200;
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, W, H);
+        ctx.save();
+        ctx.translate(W / 2, H / 2);
+        ctx.rotate(-28 * Math.PI / 180); // diagonal angle
+        ctx.font = '600 10px "Courier New", monospace';
+        ctx.fillStyle = 'rgba(255,255,255,0.055)'; // ~5.5% white on near-black bg
+        ctx.textAlign = 'center';
+        const lines = [userId, email].filter(Boolean);
+        const lineH  = 15;
+        const groupH = lines.length * lineH + 22;
+        const colW   = 320;
+        for (let row = -5; row <= 5; row++) {
+            for (let col = -3; col <= 3; col++) {
+                lines.forEach((line, i) =>
+                    ctx.fillText(line, col * colW, row * groupH + i * lineH));
+            }
+        }
+        ctx.restore();
+        return canvas.toDataURL('image/png');
+    } catch { return null; }
+}
 
 // ── TIER-GATED CONTENT RENDERER ──
 // In your markdown, use [gate:initiate] or [gate:adept] on its own line
@@ -185,6 +259,10 @@ function buildContent(payload, tier) {
                 <div class="panel-eyebrow">Welcome</div>
                 <h1 class="panel-title">Salve, ${payload.name || 'Soror/Frater'}.</h1>
                 <p class="panel-lead">You have entered the Inner Academy of the Ternary Alchemical Order as a <strong>${TIERS[tier].label}</strong>. The Great Work awaits.</p>
+                ${tier === 'patron' ? `
+                <div class="upgrade-notice" style="border-color:rgba(0,209,255,0.2);background:rgba(0,209,255,0.03)">
+                    <p>Your patronage sustains the Temple and its Work. Every resource of the Order is open to you. We are sincerely grateful.</p>
+                </div>` : ''}
                 ${tier === 'tyro' ? `
                 <div class="upgrade-notice">
                     <p>Unlock the full curriculum — lesson modules, lab guides, and community access — by upgrading your Patreon membership.</p>
@@ -323,6 +401,13 @@ function init() {
         document.querySelector('.main-wrap').style.marginTop = '30px';
     }
 
+    // Generate screenshot watermark once for this entire session.
+    // Stored in closure — applied to every article body the member views.
+    const wmDataUrl = generateWatermarkDataUrl(
+        payload.userId || '',
+        payload.email  || ''
+    );
+
     const tierConfig = TIERS[tier] || TIERS.tyro;
     const CONTENT = buildContent(payload, tier);
 
@@ -370,9 +455,24 @@ function init() {
                         <button class="back-btn" id="back-btn">← Back</button>
                         ${eyebrow}
                         <h1 class="panel-title">${item.title}</h1>
-                        <div class="article-body">${renderTieredContent(item.content, tier)}</div>
+                        <div class="article-body">
+                            <span style="position:absolute;opacity:0;font-size:0;user-select:none" aria-hidden="true">${encodeZW(payload.userId||'')}</span>
+                            ${renderTieredContent(item.content, tier)}
+                        </div>
+                        ${renderPersonalSeal(payload, tier)}
                     </div>`;
                 document.getElementById('back-btn').onclick = () => showPanel(backPanel || 'articles');
+
+                // Apply screenshot watermark to article body.
+                // Uses requestAnimationFrame to ensure the DOM is painted before we
+                // set the background, avoiding a flash of unwatermarked content.
+                requestAnimationFrame(() => {
+                    const body = document.querySelector('.article-body');
+                    if (body && wmDataUrl) {
+                        body.style.backgroundImage = `url(${wmDataUrl})`;
+                        body.style.backgroundRepeat = 'repeat';
+                    }
+                });
             })
             .catch(() => {
                 document.getElementById('dash-content').innerHTML =

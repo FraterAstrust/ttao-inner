@@ -1,7 +1,7 @@
 const { getStore } = require("@netlify/blobs");
 const jwt = require("jsonwebtoken");
 
-const TIER_RANK = { tyro: 0, initiate: 1, adept: 2 };
+const TIER_RANK = { tyro: 0, initiate: 1, adept: 2, patron: 2 };
 
 function verifySession(event) {
   const cookieHeader = event.headers.cookie || "";

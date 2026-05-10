@@ -8,8 +8,9 @@ function getAdminIds() {
 
 function getTier(amountCents, userId) {
   if (getAdminIds().includes(userId)) return "adept";
+  if (amountCents >= 3300) return "patron";
   if (amountCents >= 1500) return "adept";
-  if (amountCents >= 500) return "initiate";
+  if (amountCents >= 500)  return "initiate";
   return "tyro";
 }
 

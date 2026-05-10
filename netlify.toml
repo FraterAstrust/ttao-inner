@@ -27,6 +27,12 @@
   force = true
 
 [[redirects]]
+  from = "/admin/export"
+  to = "/.netlify/functions/admin-export"
+  status = 302
+  force = true
+
+[[redirects]]
   from = "/dashboard"
   to = "/dashboard.html"
   status = 200

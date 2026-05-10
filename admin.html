@@ -49,6 +49,9 @@
         <li><button class="nav-item" data-panel="preview">
             <span class="nav-icon">👁</span><span>Preview</span>
         </button></li>
+        <li><button class="nav-item" data-panel="backup">
+            <span class="nav-icon">💾</span><span>Backup</span>
+        </button></li>
     </ul>
 
     <div class="sidebar-footer">
@@ -122,6 +125,8 @@ function showPanel(id) {
         renderStudents();
     } else if (id === 'preview') {
         renderPreview();
+    } else if (id === 'backup') {
+        renderBackup();
     }
     if (window.innerWidth <= 768) closeSidebar();
 }
@@ -397,6 +402,107 @@ async function renderStudents() {
         document.getElementById('students-wrap').innerHTML =
             `<p class="error-state">Failed to load students: ${err.message}</p>`;
     }
+}
+
+// ── BACKUP ──
+function renderBackup() {
+    document.getElementById('dash-content').innerHTML = `
+        <div class="panel fade-in">
+            <div class="panel-eyebrow">Data</div>
+            <h1 class="panel-title">Backup & Restore</h1>
+
+            <div class="backup-section">
+                <h2 class="backup-heading">Export</h2>
+                <p class="backup-desc">Download all published and draft content as a JSON file. Keep this safe — it can restore your entire academy to any hosting environment.</p>
+                <button class="btn btn-gold" id="export-btn">⬇ Download Backup</button>
+                <span class="save-status" id="export-status"></span>
+            </div>
+
+            <div class="backup-section">
+                <h2 class="backup-heading">Import</h2>
+                <p class="backup-desc">Restore content from a previously exported backup file. Choose <strong>Merge</strong> to add to existing content, or <strong>Replace</strong> to wipe and restore.</p>
+                <div style="display:flex;gap:0.8rem;align-items:center;flex-wrap:wrap;margin-bottom:0.8rem">
+                    <input type="file" id="import-file" accept=".json" class="file-input">
+                    <select id="import-mode" class="field-input" style="flex:0 0 140px">
+                        <option value="merge">Merge</option>
+                        <option value="replace">Replace All</option>
+                    </select>
+                    <button class="btn btn-outline" id="import-btn">⬆ Import</button>
+                </div>
+                <span class="save-status" id="import-status"></span>
+            </div>
+
+            <div class="backup-section">
+                <h2 class="backup-heading">Watermark Decoder</h2>
+                <p class="backup-desc">If content is leaked, paste the copied text below. Invisible zero-width characters embedded in every article will reveal the member's Patreon ID.</p>
+                <textarea id="wm-input" class="md-input" style="min-height:120px;margin-bottom:0.8rem" placeholder="Paste leaked text here..."></textarea>
+                <button class="btn btn-outline" id="wm-decode-btn">Decode Watermark</button>
+                <div id="wm-result" style="margin-top:0.8rem;font-family:'Cinzel',serif;font-size:0.8rem;color:var(--gold-dim)"></div>
+            </div>
+        </div>`;
+
+    // Export
+    document.getElementById('export-btn').addEventListener('click', async () => {
+        const status = document.getElementById('export-status');
+        status.textContent = 'Preparing export...';
+        try {
+            const res = await fetch('/.netlify/functions/admin-export');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const blob = await res.blob();
+            const date = new Date().toISOString().split('T')[0];
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `ttao-backup-${date}.json`;
+            a.click(); URL.revokeObjectURL(url);
+            status.textContent = '✓ Downloaded';
+        } catch (err) {
+            status.textContent = `Error: ${err.message}`;
+        }
+    });
+
+    // Import
+    document.getElementById('import-btn').addEventListener('click', async () => {
+        const status = document.getElementById('import-status');
+        const file = document.getElementById('import-file').files[0];
+        const mode = document.getElementById('import-mode').value;
+        if (!file) { status.textContent = 'Select a backup file first.'; return; }
+        if (mode === 'replace' && !confirm('Replace ALL content with this backup? This cannot be undone.')) return;
+        status.textContent = 'Importing...';
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+            const res = await fetch('/.netlify/functions/admin-export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: data.content, mode }),
+            });
+            const result = await res.json();
+            status.textContent = `✓ Imported ${result.imported} items${result.errors?.length ? ` (${result.errors.length} errors)` : ''}`;
+        } catch (err) {
+            status.textContent = `Error: ${err.message}`;
+        }
+    });
+
+    // Watermark decoder
+    document.getElementById('wm-decode-btn').addEventListener('click', () => {
+        const text = document.getElementById('wm-input').value;
+        const result = document.getElementById('wm-result');
+        const zw = text.replace(/[^\u200B\u200C\u200D]/g, '');
+        if (!zw) { result.textContent = 'No watermark found in pasted text.'; return; }
+        try {
+            const parts = zw.split('\u200D');
+            const decoded = parts.map(part => {
+                const binary = part.split('').map(c => c === '\u200C' ? '1' : '0').join('');
+                if (binary.length < 8) return '';
+                return String.fromCharCode(parseInt(binary, 2));
+            }).join('');
+            result.innerHTML = decoded
+                ? `Patreon User ID: <strong style="color:var(--text-bright)">${decoded}</strong>`
+                : 'Could not decode — watermark may be incomplete.';
+        } catch {
+            result.textContent = 'Decode failed.';
+        }
+    });
 }
 
 // ── PREVIEW ──

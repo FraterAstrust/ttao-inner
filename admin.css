@@ -509,3 +509,86 @@ body {
 
 /* ── BTN CYAN (used in preview panel) ── */
 .btn-cyan { background: var(--cyan-dim); color: #e0faff; border: 1px solid rgba(0,209,255,0.3); }
+
+/* ── GATE MARKER (editor preview visualization) ── */
+.gate-marker {
+    display: block;
+    border: 1px dashed rgba(212,175,55,0.3);
+    border-radius: 3px;
+    padding: 0.3rem 0.8rem;
+    font-family: 'Cinzel', serif;
+    font-size: 0.62rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    text-align: center;
+    margin: 0.8rem 0;
+}
+
+/* ── GATE HINT (editor form) ── */
+.gate-hint {
+    font-size: 0.82rem;
+    opacity: 0.55;
+    font-style: italic;
+    padding: 0.5rem 0.8rem;
+    border-left: 2px solid var(--border);
+}
+.gate-hint code {
+    background: rgba(255,255,255,0.06);
+    padding: 0.1rem 0.35rem;
+    border-radius: 2px;
+    font-style: normal;
+    font-size: 0.8rem;
+    color: var(--gold-dim);
+}
+
+/* ── BTN CYAN ── */
+.btn-cyan { background: var(--cyan-dim); color: #e0faff; border: 1px solid rgba(0,209,255,0.3); }
+
+/* ── BACKUP PANEL ── */
+.backup-section {
+    margin-bottom: 2.5rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border-light);
+    max-width: 680px;
+}
+.backup-section:last-child { border-bottom: none; }
+.backup-heading {
+    font-family: 'Cinzel', serif;
+    font-size: 0.72rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 0.5rem;
+}
+.backup-desc {
+    font-size: 0.9rem;
+    opacity: 0.7;
+    margin-bottom: 1rem;
+    line-height: 1.7;
+}
+.file-input {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: 'EB Garamond', serif;
+    font-size: 0.85rem;
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+}
+.file-input::file-selector-button {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text-dim);
+    font-family: 'Cinzel', serif;
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    margin-right: 0.6rem;
+    transition: color 0.2s;
+}
+.file-input::file-selector-button:hover { color: var(--text); }
