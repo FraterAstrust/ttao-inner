@@ -140,7 +140,9 @@ function generateWatermarkDataUrl(userId, email) {
         ctx.translate(W / 2, H / 2);
         ctx.rotate(-22 * Math.PI / 180);
         ctx.font = '400 8.5px "Courier New", monospace';
-        ctx.fillStyle = 'rgba(255,255,255,0.022)';
+        // Near-background color: bg is #060606, so use a very slightly lighter shade
+        // Invisible to naked eye, but contrast-boost in any image editor will reveal it
+        ctx.fillStyle = 'rgba(180,160,120,0.018)';
         ctx.textAlign = 'center';
         const lines = [userId, email].filter(Boolean);
         const lineH  = 13;
@@ -433,6 +435,8 @@ function init() {
 
     // ── SHOW PANEL ──
     function showPanel(id) {
+        const ov = document.getElementById('wm-overlay');
+        if (ov) ov.remove();
         document.querySelectorAll('.nav-item').forEach(btn =>
             btn.classList.toggle('active', btn.dataset.panel === id));
         document.getElementById('dash-content').innerHTML = CONTENT[id]
@@ -464,16 +468,32 @@ function init() {
                         </div>
                         ${renderPersonalSeal(payload, tier)}
                     </div>`;
-                document.getElementById('back-btn').onclick = () => showPanel(backPanel || 'articles');
+                document.getElementById('back-btn').onclick = () => {
+                    const ov = document.getElementById('wm-overlay');
+                    if (ov) ov.remove();
+                    showPanel(backPanel || 'articles');
+                };
 
                 // Apply screenshot watermark to article body.
                 // Uses requestAnimationFrame to ensure the DOM is painted before we
                 // set the background, avoiding a flash of unwatermarked content.
                 requestAnimationFrame(() => {
-                    const body = document.querySelector('.article-body');
-                    if (body && wmDataUrl) {
-                        body.style.backgroundImage = `url(${wmDataUrl})`;
-                        body.style.backgroundRepeat = 'repeat';
+                    // Remove any previous watermark overlay
+                    const prev = document.getElementById('wm-overlay');
+                    if (prev) prev.remove();
+                    if (wmDataUrl) {
+                        const overlay = document.createElement('div');
+                        overlay.id = 'wm-overlay';
+                        overlay.style.cssText = [
+                            'position:fixed',
+                            'inset:0',
+                            'pointer-events:none',
+                            'z-index:9999',
+                            `background-image:url(${wmDataUrl})`,
+                            'background-repeat:repeat',
+                            'background-size:900px 360px',
+                        ].join(';');
+                        document.body.appendChild(overlay);
                     }
                 });
             })
