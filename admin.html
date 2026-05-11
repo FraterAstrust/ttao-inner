@@ -368,12 +368,13 @@ async function renderStudents() {
 
         wrap.innerHTML = `<table class="data-table">
             <thead><tr>
-                <th>Name</th><th>Email</th><th>Tier</th><th>Last Seen</th><th>Override</th>
+                <th>Name</th><th>Email</th><th>Patreon ID</th><th>Tier</th><th>Last Seen</th><th>Override</th>
             </tr></thead>
             <tbody>
             ${students.map(s => `<tr>
                 <td>${s.name || '—'}</td>
                 <td class="td-email">${s.email || '—'}</td>
+                <td class="td-id"><code style="font-size:0.75rem;opacity:0.7;font-family:'Courier New',monospace">${s.userId || '—'}</code></td>
                 <td>
                     <select class="tier-select" data-id="${s.userId}">
                         <option value="tyro"     ${s.tier === 'tyro'     ? 'selected' : ''}>Tyro</option>

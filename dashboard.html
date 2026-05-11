@@ -194,6 +194,10 @@ function renderTieredContent(markdown, userTier) {
     }).join('');
 }
 
+// Module-level reference — populated by init() so loadContentList can call it
+// without being defined inside init's closure.
+let _showContent = null;
+
 // ── CONTENT LIST LOADER ──
 function loadContentList(contentType, wrapId, renderCard, panelId) {
     fetch(`/.netlify/functions/articles?contentType=${contentType}`)
@@ -209,7 +213,7 @@ function loadContentList(contentType, wrapId, renderCard, panelId) {
             wrap.innerHTML = `<div class="${gridClass}">${list.map(renderCard).join('')}</div>`;
             wrap.addEventListener('click', e => {
                 const card = e.target.closest('[data-content-id]');
-                if (card) showContent(card.dataset.contentId, panelId);
+                if (card && _showContent) _showContent(card.dataset.contentId, panelId);
             });
         })
         .catch(err => {
@@ -325,7 +329,7 @@ function buildContent(payload, tier) {
                     <div class="link-card-body">
                         <div class="link-card-title">Join the Discord</div>
                         <div class="link-card-desc">Access tier-gated channels for discussion, questions, and community practice.</div>
-                        <a href="#" class="btn btn-cyan" target="_blank" rel="noopener">Open Discord</a>
+                        <a href="https://discord.gg/DgExw8QHV9" class="btn btn-cyan" target="_blank" rel="noopener">Open Discord</a>
                     </div>
                 </div>
             </div>`,
@@ -334,13 +338,13 @@ function buildContent(payload, tier) {
             <div class="panel fade-in">
                 <div class="panel-eyebrow">Community</div>
                 <h1 class="panel-title">Stoat Community</h1>
-                <p class="panel-lead">The Order's home on Stoat — reserved for Adept members.</p>
+                <p class="panel-lead">The Order's home on Stoat.</p>
                 <div class="link-card">
                     <div class="link-card-icon">🦡</div>
                     <div class="link-card-body">
                         <div class="link-card-title">Join the Stoat</div>
                         <div class="link-card-desc">Deeper discussion, long-form posts, and archival lore for advanced students.</div>
-                        <a href="#" class="btn btn-cyan" target="_blank" rel="noopener">Open Stoat</a>
+                        <a href="https://stt.gg/GYzxc9qd" class="btn btn-cyan" target="_blank" rel="noopener">Open Stoat</a>
                     </div>
                 </div>
             </div>`,
@@ -438,14 +442,17 @@ function init() {
     }
 
     // ── SHOW CONTENT (article reader for all content types) ──
-    function showContent(id, backPanel) {
+    // Hoisted to module-level via _showContent so loadContentList (defined
+    // outside init) can reach it. The actual impl lives here and closes over
+    // payload, tier, wmDataUrl, showPanel — set during init.
+    _showContent = function(id, backPanel) {
         document.getElementById('dash-content').innerHTML =
             '<div class="panel"><div class="loading">Loading...</div></div>';
         fetch(`/.netlify/functions/articles?id=${encodeURIComponent(id)}`)
             .then(r => { if (!r.ok) throw r.status; return r.json(); })
             .then(item => {
                 let eyebrow = '<div class="panel-eyebrow">Article</div>';
-                if (item.moduleNumber)  eyebrow = `<div class="panel-eyebrow">${item.moduleNumber}</div>`;
+                if (item.moduleNumber)   eyebrow = `<div class="panel-eyebrow">${item.moduleNumber}</div>`;
                 if (item.bulletinNumber) eyebrow = `<div class="panel-eyebrow">${item.bulletinNumber}</div>`;
                 if (item.glyph && !item.moduleNumber && !item.bulletinNumber) {
                     eyebrow = `<div class="glyph-symbol" style="font-size:2rem;margin-bottom:0.8rem;display:block">${item.glyph}</div>`;
@@ -463,9 +470,6 @@ function init() {
                     </div>`;
                 document.getElementById('back-btn').onclick = () => showPanel(backPanel || 'articles');
 
-                // Apply screenshot watermark to article body.
-                // Uses requestAnimationFrame to ensure the DOM is painted before we
-                // set the background, avoiding a flash of unwatermarked content.
                 requestAnimationFrame(() => {
                     const body = document.querySelector('.article-body');
                     if (body && wmDataUrl) {
@@ -478,7 +482,9 @@ function init() {
                 document.getElementById('dash-content').innerHTML =
                     '<div class="panel"><p class="error-state">Failed to load content.</p></div>';
             });
-    }
+    };
+    // local alias for readability
+    const showContent = _showContent;
 
     // Nav clicks
     nav.addEventListener('click', e => {
