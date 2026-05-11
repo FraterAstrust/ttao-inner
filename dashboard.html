@@ -132,22 +132,22 @@ function renderPersonalSeal(payload, tier) {
 function generateWatermarkDataUrl(userId, email) {
     try {
         const canvas = document.createElement('canvas');
-        const W = 480, H = 200;
+        const W = 900, H = 360;
         canvas.width = W; canvas.height = H;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, W, H);
         ctx.save();
         ctx.translate(W / 2, H / 2);
-        ctx.rotate(-28 * Math.PI / 180); // diagonal angle
-        ctx.font = '600 10px "Courier New", monospace';
-        ctx.fillStyle = 'rgba(255,255,255,0.055)'; // ~5.5% white on near-black bg
+        ctx.rotate(-22 * Math.PI / 180);
+        ctx.font = '400 8.5px "Courier New", monospace';
+        ctx.fillStyle = 'rgba(255,255,255,0.022)';
         ctx.textAlign = 'center';
         const lines = [userId, email].filter(Boolean);
-        const lineH  = 15;
-        const groupH = lines.length * lineH + 22;
-        const colW   = 320;
-        for (let row = -5; row <= 5; row++) {
-            for (let col = -3; col <= 3; col++) {
+        const lineH  = 13;
+        const groupH = lines.length * lineH + 40;
+        const colW   = 420;
+        for (let row = -6; row <= 6; row++) {
+            for (let col = -4; col <= 4; col++) {
                 lines.forEach((line, i) =>
                     ctx.fillText(line, col * colW, row * groupH + i * lineH));
             }
@@ -195,7 +195,6 @@ function renderTieredContent(markdown, userTier) {
 }
 
 // Module-level reference — populated by init() so loadContentList can call it
-// without being defined inside init's closure.
 let _showContent = null;
 
 // ── CONTENT LIST LOADER ──
@@ -441,10 +440,7 @@ function init() {
             : '<div class="panel"><p>Coming soon.</p></div>';
     }
 
-    // ── SHOW CONTENT (article reader for all content types) ──
-    // Hoisted to module-level via _showContent so loadContentList (defined
-    // outside init) can reach it. The actual impl lives here and closes over
-    // payload, tier, wmDataUrl, showPanel — set during init.
+    // ── SHOW CONTENT ──
     _showContent = function(id, backPanel) {
         document.getElementById('dash-content').innerHTML =
             '<div class="panel"><div class="loading">Loading...</div></div>';
@@ -452,7 +448,7 @@ function init() {
             .then(r => { if (!r.ok) throw r.status; return r.json(); })
             .then(item => {
                 let eyebrow = '<div class="panel-eyebrow">Article</div>';
-                if (item.moduleNumber)   eyebrow = `<div class="panel-eyebrow">${item.moduleNumber}</div>`;
+                if (item.moduleNumber)  eyebrow = `<div class="panel-eyebrow">${item.moduleNumber}</div>`;
                 if (item.bulletinNumber) eyebrow = `<div class="panel-eyebrow">${item.bulletinNumber}</div>`;
                 if (item.glyph && !item.moduleNumber && !item.bulletinNumber) {
                     eyebrow = `<div class="glyph-symbol" style="font-size:2rem;margin-bottom:0.8rem;display:block">${item.glyph}</div>`;
@@ -470,6 +466,9 @@ function init() {
                     </div>`;
                 document.getElementById('back-btn').onclick = () => showPanel(backPanel || 'articles');
 
+                // Apply screenshot watermark to article body.
+                // Uses requestAnimationFrame to ensure the DOM is painted before we
+                // set the background, avoiding a flash of unwatermarked content.
                 requestAnimationFrame(() => {
                     const body = document.querySelector('.article-body');
                     if (body && wmDataUrl) {
@@ -482,9 +481,7 @@ function init() {
                 document.getElementById('dash-content').innerHTML =
                     '<div class="panel"><p class="error-state">Failed to load content.</p></div>';
             });
-    };
-    // local alias for readability
-    const showContent = _showContent;
+    }
 
     // Nav clicks
     nav.addEventListener('click', e => {
