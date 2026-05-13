@@ -132,26 +132,31 @@ function renderPersonalSeal(payload, tier) {
 function generateWatermarkDataUrl(userId, email) {
     try {
         const canvas = document.createElement('canvas');
-        const W = 900, H = 360;
+        // Tile ≈ mobile article width. Displayed at native pixel size (no CSS scaling),
+        // so 14px in canvas = 14px on screen. Mobile shows ~1 full tile; desktop ~2.
+        const W = 390, H = 160;
         canvas.width = W; canvas.height = H;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, W, H);
         ctx.save();
         ctx.translate(W / 2, H / 2);
-        ctx.rotate(-22 * Math.PI / 180);
-        ctx.font = '400 8.5px "Courier New", monospace';
-        // Near-background color: bg is #060606, so use a very slightly lighter shade
-        // Invisible to naked eye, but contrast-boost in any image editor will reveal it
-        ctx.fillStyle = 'rgba(180,160,120,0.018)';
-        ctx.textAlign = 'center';
-        const lines = [userId, email].filter(Boolean);
-        const lineH  = 13;
-        const groupH = lines.length * lineH + 40;
-        const colW   = 420;
-        for (let row = -6; row <= 6; row++) {
-            for (let col = -4; col <= 4; col++) {
+        ctx.rotate(-28 * Math.PI / 180);
+        ctx.font         = '700 14px "Courier New", monospace';
+        ctx.fillStyle    = 'rgba(255,255,255,0.07)';
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        const lines  = [userId, email].filter(Boolean);
+        const lineH  = 18;
+        const groupH = lines.length * lineH + 20;
+        // Measure actual text width so columns are snug regardless of ID/email length
+        const colW   = Math.max(...lines.map(l => ctx.measureText(l).width)) + 30;
+        const diag   = Math.sqrt(W * W + H * H);
+        const rows   = Math.ceil(diag / groupH) + 2;
+        const cols   = Math.ceil(diag / colW)   + 2;
+        for (let r = -rows; r <= rows; r++) {
+            for (let c = -cols; c <= cols; c++) {
                 lines.forEach((line, i) =>
-                    ctx.fillText(line, col * colW, row * groupH + i * lineH));
+                    ctx.fillText(line, c * colW, r * groupH + i * lineH));
             }
         }
         ctx.restore();
@@ -196,12 +201,9 @@ function renderTieredContent(markdown, userTier) {
     }).join('');
 }
 
-// Module-level reference — populated by init() so loadContentList can call it
-let _showContent = null;
-
 // ── CONTENT LIST LOADER ──
 function loadContentList(contentType, wrapId, renderCard, panelId) {
-    fetch(`/.netlify/functions/articles?contentType=${contentType}`)
+    fetch(`/api/articles?contentType=${contentType}`)
         .then(r => { if (!r.ok) throw r.status; return r.json(); })
         .then(list => {
             const wrap = document.getElementById(wrapId);
@@ -214,7 +216,7 @@ function loadContentList(contentType, wrapId, renderCard, panelId) {
             wrap.innerHTML = `<div class="${gridClass}">${list.map(renderCard).join('')}</div>`;
             wrap.addEventListener('click', e => {
                 const card = e.target.closest('[data-content-id]');
-                if (card && _showContent) _showContent(card.dataset.contentId, panelId);
+                if (card) showContent(card.dataset.contentId, panelId);
             });
         })
         .catch(err => {
@@ -330,7 +332,7 @@ function buildContent(payload, tier) {
                     <div class="link-card-body">
                         <div class="link-card-title">Join the Discord</div>
                         <div class="link-card-desc">Access tier-gated channels for discussion, questions, and community practice.</div>
-                        <a href="https://discord.gg/DgExw8QHV9" class="btn btn-cyan" target="_blank" rel="noopener">Open Discord</a>
+                        <a href="#" class="btn btn-cyan" target="_blank" rel="noopener">Open Discord</a>
                     </div>
                 </div>
             </div>`,
@@ -339,13 +341,13 @@ function buildContent(payload, tier) {
             <div class="panel fade-in">
                 <div class="panel-eyebrow">Community</div>
                 <h1 class="panel-title">Stoat Community</h1>
-                <p class="panel-lead">The Order's home on Stoat.</p>
+                <p class="panel-lead">The Order's home on Stoat — reserved for Adept members.</p>
                 <div class="link-card">
                     <div class="link-card-icon">🦡</div>
                     <div class="link-card-body">
                         <div class="link-card-title">Join the Stoat</div>
                         <div class="link-card-desc">Deeper discussion, long-form posts, and archival lore for advanced students.</div>
-                        <a href="https://stt.gg/GYzxc9qd" class="btn btn-cyan" target="_blank" rel="noopener">Open Stoat</a>
+                        <a href="#" class="btn btn-cyan" target="_blank" rel="noopener">Open Stoat</a>
                     </div>
                 </div>
             </div>`,
@@ -435,8 +437,8 @@ function init() {
 
     // ── SHOW PANEL ──
     function showPanel(id) {
-        const ov = document.getElementById('wm-overlay');
-        if (ov) ov.remove();
+        // Remove watermark overlay when leaving an article
+        document.getElementById('wm-overlay')?.remove();
         document.querySelectorAll('.nav-item').forEach(btn =>
             btn.classList.toggle('active', btn.dataset.panel === id));
         document.getElementById('dash-content').innerHTML = CONTENT[id]
@@ -444,11 +446,11 @@ function init() {
             : '<div class="panel"><p>Coming soon.</p></div>';
     }
 
-    // ── SHOW CONTENT ──
-    _showContent = function(id, backPanel) {
+    // ── SHOW CONTENT (article reader for all content types) ──
+    function showContent(id, backPanel) {
         document.getElementById('dash-content').innerHTML =
             '<div class="panel"><div class="loading">Loading...</div></div>';
-        fetch(`/.netlify/functions/articles?id=${encodeURIComponent(id)}`)
+        fetch(`/api/articles?id=${encodeURIComponent(id)}`)
             .then(r => { if (!r.ok) throw r.status; return r.json(); })
             .then(item => {
                 let eyebrow = '<div class="panel-eyebrow">Article</div>';
@@ -468,34 +470,24 @@ function init() {
                         </div>
                         ${renderPersonalSeal(payload, tier)}
                     </div>`;
-                document.getElementById('back-btn').onclick = () => {
-                    const ov = document.getElementById('wm-overlay');
-                    if (ov) ov.remove();
-                    showPanel(backPanel || 'articles');
-                };
+                document.getElementById('back-btn').onclick = () => showPanel(backPanel || 'articles');
 
-                // Apply screenshot watermark to article body.
-                // Uses requestAnimationFrame to ensure the DOM is painted before we
-                // set the background, avoiding a flash of unwatermarked content.
-                requestAnimationFrame(() => {
-                    // Remove any previous watermark overlay
-                    const prev = document.getElementById('wm-overlay');
-                    if (prev) prev.remove();
-                    if (wmDataUrl) {
-                        const overlay = document.createElement('div');
-                        overlay.id = 'wm-overlay';
-                        overlay.style.cssText = [
-                            'position:fixed',
-                            'inset:0',
-                            'pointer-events:none',
-                            'z-index:9999',
-                            `background-image:url(${wmDataUrl})`,
-                            'background-repeat:repeat',
-                            'background-size:900px 360px',
-                        ].join(';');
-                        document.body.appendChild(overlay);
-                    }
-                });
+                // Mount fixed-position watermark overlay. position:fixed means it stays
+                // locked to the viewport as the user scrolls — it does not move with content.
+                // Removed automatically when showPanel() is called (back navigation).
+                if (wmDataUrl) {
+                    document.getElementById('wm-overlay')?.remove();
+                    const ov = document.createElement('div');
+                    ov.id = 'wm-overlay';
+                    ov.style.cssText = [
+                        'position:fixed', 'inset:0',
+                        'pointer-events:none', 'z-index:9999',
+                        `background-image:url(${wmDataUrl})`,
+                        'background-repeat:repeat',
+                        'background-size:390px auto',
+                    ].join(';');
+                    document.body.appendChild(ov);
+                }
             })
             .catch(() => {
                 document.getElementById('dash-content').innerHTML =

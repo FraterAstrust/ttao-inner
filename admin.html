@@ -147,7 +147,7 @@ async function renderContentList(type) {
     document.getElementById('new-btn').addEventListener('click', () => renderEditor(null, type));
 
     try {
-        const items = await api(`/.netlify/functions/admin-articles?contentType=${type}`);
+        const items = await api(`/api/admin/articles?contentType=${type}`);
         const wrap = document.getElementById('content-wrap');
 
         if (!items.length) {
@@ -192,7 +192,7 @@ async function renderContentList(type) {
             if (btn.dataset.action === 'edit') renderEditor(btn.dataset.id, type);
             if (btn.dataset.action === 'delete') {
                 if (!confirm(`Delete "${btn.dataset.title}"?`)) return;
-                await api(`/.netlify/functions/admin-articles?id=${btn.dataset.id}`, { method: 'DELETE' });
+                await api(`/api/admin/articles?id=${btn.dataset.id}`, { method: 'DELETE' });
                 renderContentList(type);
             }
         });
@@ -282,7 +282,7 @@ async function renderEditor(id, contentType = 'articles') {
     // Load existing item
     if (id) {
         try {
-            const item = await api(`/.netlify/functions/admin-articles?id=${id}`);
+            const item = await api(`/api/admin/articles?id=${id}`);
             titleEl.value = item.title;
             contentEl.value = item.content;
             tierEl.value = item.tier;
@@ -326,9 +326,9 @@ async function renderEditor(id, contentType = 'articles') {
         status.textContent = 'Saving...';
         try {
             if (id) {
-                await api(`/.netlify/functions/admin-articles?id=${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+                await api(`/api/admin/articles?id=${id}`, { method: 'PUT', body: JSON.stringify(payload) });
             } else {
-                await api('/.netlify/functions/admin-articles', { method: 'POST', body: JSON.stringify(payload) });
+                await api('/api/admin/articles', { method: 'POST', body: JSON.stringify(payload) });
             }
             status.textContent = '✓ Saved';
             setTimeout(() => renderContentList(contentType), 800);
@@ -359,7 +359,7 @@ async function renderStudents() {
     </div>`;
 
     try {
-        const students = await api('/.netlify/functions/admin-students');
+        const students = await api('/api/admin/students');
         const wrap = document.getElementById('students-wrap');
 
         if (!students.length) {
@@ -368,13 +368,12 @@ async function renderStudents() {
 
         wrap.innerHTML = `<table class="data-table">
             <thead><tr>
-                <th>Name</th><th>Email</th><th>Patreon ID</th><th>Tier</th><th>Last Seen</th><th>Override</th>
+                <th>Name</th><th>Email</th><th>Tier</th><th>Last Seen</th><th>Override</th>
             </tr></thead>
             <tbody>
             ${students.map(s => `<tr>
                 <td>${s.name || '—'}</td>
                 <td class="td-email">${s.email || '—'}</td>
-                <td class="td-id"><code style="font-size:0.75rem;opacity:0.7;font-family:'Courier New',monospace">${s.userId || '—'}</code></td>
                 <td>
                     <select class="tier-select" data-id="${s.userId}">
                         <option value="tyro"     ${s.tier === 'tyro'     ? 'selected' : ''}>Tyro</option>
@@ -391,7 +390,7 @@ async function renderStudents() {
         wrap.querySelectorAll('.tier-select').forEach(sel => {
             sel.addEventListener('change', async () => {
                 try {
-                    await api(`/.netlify/functions/admin-students?id=${sel.dataset.id}`, {
+                    await api(`/api/admin/students?id=${sel.dataset.id}`, {
                         method: 'PUT', body: JSON.stringify({ tier: sel.value }),
                     });
                     sel.style.borderColor = 'var(--gold)';
@@ -447,7 +446,7 @@ function renderBackup() {
         const status = document.getElementById('export-status');
         status.textContent = 'Preparing export...';
         try {
-            const res = await fetch('/.netlify/functions/admin-export');
+            const res = await fetch('/api/admin/export');
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const blob = await res.blob();
             const date = new Date().toISOString().split('T')[0];
@@ -472,7 +471,7 @@ function renderBackup() {
         try {
             const text = await file.text();
             const data = JSON.parse(text);
-            const res = await fetch('/.netlify/functions/admin-export', {
+            const res = await fetch('/api/admin/export', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content: data.content, mode }),
