@@ -386,6 +386,10 @@ function buildContent(payload, tier) {
     };
 }
 
+// Declared at module level so loadContentList can call it from outside init().
+// Assigned inside init() so it closes over tier, payload, and wmDataUrl.
+let showContent;
+
 // ── INIT ──
 function init() {
     const token = getCookie('ttao_session');
@@ -447,7 +451,7 @@ function init() {
     }
 
     // ── SHOW CONTENT (article reader for all content types) ──
-    function showContent(id, backPanel) {
+    showContent = function(id, backPanel) {
         document.getElementById('dash-content').innerHTML =
             '<div class="panel"><div class="loading">Loading...</div></div>';
         fetch(`/api/articles?id=${encodeURIComponent(id)}`)
