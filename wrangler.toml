@@ -2,28 +2,10 @@ name                   = "ttao-academy"
 pages_build_output_dir = "."
 compatibility_date     = "2025-01-01"
 
-# ── KV NAMESPACES ─────────────────────────────────────────────────────────────
-# Create these in: Cloudflare Dashboard → Workers & Pages → KV → Create namespace
-# Then paste the IDs below.
-
 [[kv_namespaces]]
 binding = "ARTICLES_KV"
-id      = "REPLACE_WITH_ARTICLES_KV_ID"
+id      = "57042f14d2c349adb4de84ff6f508f6c"
 
 [[kv_namespaces]]
 binding = "STUDENTS_KV"
-id      = "REPLACE_WITH_STUDENTS_KV_ID"
-
-# ── SECRETS ───────────────────────────────────────────────────────────────────
-# Set these in: Cloudflare Dashboard → Pages → ttao-academy → Settings →
-#               Environment Variables → Add variable (mark as Secret)
-#
-#   JWT_SECRET                  — session token signing key
-#   JWT_ADMIN_SECRET            — admin token signing key
-#   PATREON_CLIENT_ID
-#   PATREON_CLIENT_SECRET
-#   PATREON_ADMIN_IDS           — comma-separated Patreon user IDs
-#   PATREON_REDIRECT_URI        = https://ttao-academy.pages.dev/auth/patreon/callback
-#   PATREON_REDIRECT_URI_ADMIN  = https://ttao-academy.pages.dev/auth/admin/callback
-#
-# Never put secret values in this file.
+id      = "0e1b069217264bfdb511c275bdbaaf41"
